@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Launcher for corral. Pinned to the system python3 (stdlib only), so a
+# conda python earlier on PATH never gets used. `corral -h` for usage.
+REPO="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
+PYTHONPATH="$REPO${PYTHONPATH:+:$PYTHONPATH}" exec /usr/bin/python3 -m corral "$@"
