@@ -4,6 +4,7 @@ import os
 import subprocess
 import time
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -13,13 +14,15 @@ from corral.setfile import Entry
 
 @pytest.fixture(autouse=True)
 def corral_env(tmp_path, monkeypatch):
-    monkeypatch.setenv("CORRAL_SOCKET", f"corral-test-{uuid.uuid4().hex[:8]}")
+    socket = f"corral-test-{uuid.uuid4().hex[:8]}"
+    monkeypatch.setenv("CORRAL_SOCKET", socket)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("CORRAL_NO_TERMINAL", "1")
     monkeypatch.delenv("TMUX", raising=False)
     yield
     tmux.run("kill-server", check=False)
+    (Path(f"/tmp/tmux-{os.getuid()}") / socket).unlink(missing_ok=True)
 
 
 def view_tasks(session):
