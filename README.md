@@ -11,11 +11,11 @@ never sees it, and it does not leak into other terminals.
 ```
 ┌─ one terminal window: `corral open school` ──────────────┐
 │ corral · school │                                         │
-│ ▶ mymonitor   ⟳ │                                         │
+│ ▶ mymonitor  ◐  │                                         │
 │   ~             │     the shown task, full size           │
-│   Fix parser  ● │     (a real, live pane)                 │
+│   Fix parser ●  │     (a real, live pane)                 │
 │   claude · ~/C… │                                         │
-│   ~/Notes     · │                                         │
+│   ~/Notes    ○  │                                         │
 │   shell         │                                         │
 └─────────────────┴─────────────────────────────────────────┘
 ```
@@ -71,15 +71,16 @@ Sidebar labels are derived from what runs, nothing is typed: an idle shell
 shows its directory, a program its name and the file it works on
 (`nvim TODO.md`), Claude Code the topic from its terminal title. `r` sets a
 label by hand (empty goes back to automatic). The sidebar keeps a fixed
-width, `@corral_sidebar_width` in `tmux.conf` (50 columns).
+width, `@corral_sidebar_width` in `tmux.conf` (23 columns, about 200 px).
+The selected row is gray with white text.
 
 tmux's own window and session keys (prefix 0–9, w, f, ', (, ), L, ., &, $)
 are removed: they would show a parked task without the sidebar.
 
-Sidebar marks: `⟳` busy (screen changed in the last 3 s), `●` done (was busy,
-went quiet while you were not looking; clears when shown), `!` bell,
-`·` quiet. These come from the screen, so they work for any program; a
-constantly updating monitor is always `⟳`.
+Sidebar marks: spinning `◐` (yellow) busy (screen changed in the last 3 s),
+`●` (green) done (was busy, went quiet while you were not looking; clears
+when shown), `▲` (red) bell, `○` quiet. These come from the screen, so they
+work for any program; a constantly updating monitor is always busy.
 
 ## Set files
 

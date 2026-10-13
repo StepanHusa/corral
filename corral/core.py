@@ -20,7 +20,7 @@ from pathlib import Path
 
 from . import label, setfile, snapshot, tmux
 
-SIDEBAR_WIDTH = 50  # columns; tmux.conf can override it with @corral_sidebar_width
+SIDEBAR_WIDTH = 23  # columns (about 200 px); tmux.conf can override it with @corral_sidebar_width
 
 
 @dataclass(frozen=True)

@@ -36,7 +36,16 @@ HELP = [
     "prefix S sets, s sidebar",
 ]
 
-STATE_MARK = {"busy": "⟳", "done": "●", "quiet": "·", "bell": "!"}
+STATE_MARK = {"done": "●", "quiet": "○", "bell": "▲"}
+BUSY_FRAMES = "◐◓◑◒"  # busy spins, one frame per redraw tick
+# 256-color palette: selected row is a slightly lighter gray with pure white text
+SELECTED_BG = 238
+SELECTED_FG = 231
+QUIET_FG = 244
+# color pairs: (state colors on the plain background, the same on the selected row)
+STATE_PAIRS = {"busy": (1, 11), "done": (2, 12), "bell": (3, 13), "quiet": (5, 15)}
+TITLE_PAIR = 4
+SELECTED_PAIR = 10
 
 
 def capture_screens(panes: list[str]) -> dict[str, str]:
@@ -142,7 +151,7 @@ class Sidebar:
         scr.erase()
         height, width = scr.getmaxyx()
         self.row_to_task = {}
-        self._put(0, 1, f"corral · {self.session}"[: width - 2], curses.A_BOLD | curses.color_pair(4))
+        self._put(0, 1, f"corral · {self.session}"[: width - 2], curses.A_BOLD | curses.color_pair(TITLE_PAIR))
         if self.show_help:
             for i, line in enumerate(HELP[: height - HEADER_ROWS - 1]):
                 self._put(HEADER_ROWS + i, 1, line[: width - 2], 0)
@@ -164,22 +173,33 @@ class Sidebar:
             row = HEADER_ROWS + slot * ROWS_PER_TASK
             state = self.states.get(t.pane, "quiet")
             selected = index == self.selected
-            base = curses.A_REVERSE if selected else 0
+            base = self._selected_attr() if selected else 0
             marker = "▶" if t.pane == self.shown else " "
             text, detail = self.labels.get(t.pane, (t.name, ""))
-            name = f"{marker} {label.fit(text, width - 5)}"
-            self._put(row, 0, name.ljust(width - 2), base | (curses.A_BOLD if t.pane == self.shown else 0))
-            self._put(row, width - 2, STATE_MARK[state], base | self._state_attr(state))
+            name = f"{marker} {label.fit(text, width - 6)}"
+            self._put(row, 0, name.ljust(width - 3), base | (curses.A_BOLD if t.pane == self.shown else 0))
+            self._put(row, width - 3, f"{self._mark(state)} ", base | self._state_attr(state, selected))
             self._put(row + 1, 2, label.fit(detail, width - 3), curses.A_DIM)
             self.row_to_task[row] = index
             self.row_to_task[row + 1] = index
 
-    def _state_attr(self, state: str) -> int:
-        return {
-            "busy": curses.color_pair(1),
-            "done": curses.color_pair(2) | curses.A_BOLD,
-            "bell": curses.color_pair(3) | curses.A_BOLD,
-        }.get(state, curses.A_DIM)
+    @staticmethod
+    def _mark(state: str) -> str:
+        if state == "busy":
+            return BUSY_FRAMES[int(time.monotonic() * 4) % len(BUSY_FRAMES)]
+        return STATE_MARK[state]
+
+    @staticmethod
+    def _selected_attr() -> int:
+        if curses.COLORS < 256:
+            return curses.A_REVERSE
+        return curses.color_pair(SELECTED_PAIR) | curses.A_BOLD
+
+    @staticmethod
+    def _state_attr(state: str, selected: bool) -> int:
+        plain, on_selected = STATE_PAIRS[state]
+        attr = curses.color_pair(on_selected if selected and curses.COLORS >= 256 else plain)
+        return attr | (0 if state == "quiet" else curses.A_BOLD)
 
     def _put(self, row: int, col: int, text: str, attr: int) -> None:
         try:
@@ -286,10 +306,15 @@ class Sidebar:
 def _main(scr: "curses.window", session: str) -> None:
     curses.curs_set(0)
     curses.use_default_colors()
-    curses.init_pair(1, curses.COLOR_YELLOW, -1)
-    curses.init_pair(2, curses.COLOR_GREEN, -1)
-    curses.init_pair(3, curses.COLOR_RED, -1)
-    curses.init_pair(4, curses.COLOR_MAGENTA, -1)
+    fg = {"busy": curses.COLOR_YELLOW, "done": curses.COLOR_GREEN, "bell": curses.COLOR_RED,
+          "quiet": QUIET_FG if curses.COLORS >= 256 else curses.COLOR_WHITE}
+    for state, (plain, on_selected) in STATE_PAIRS.items():
+        curses.init_pair(plain, fg[state], -1)
+        if curses.COLORS >= 256:
+            curses.init_pair(on_selected, fg[state], SELECTED_BG)
+    curses.init_pair(TITLE_PAIR, curses.COLOR_MAGENTA, -1)
+    if curses.COLORS >= 256:
+        curses.init_pair(SELECTED_PAIR, SELECTED_FG, SELECTED_BG)
     curses.mousemask(curses.ALL_MOUSE_EVENTS)
     curses.mouseinterval(0)
     scr.keypad(True)
