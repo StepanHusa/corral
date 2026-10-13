@@ -43,6 +43,7 @@ bindsym $mod+t exec xfce4-terminal -x corral open     # the corral itself
 |---|---|
 | `corral open [SET]` | open a set in this terminal (default: the last one); creates it if new, starts tasks from its file that are not running |
 | `corral term [DIR [CMD…]]` | new terminal window that looks plain but can be docked; CMD is typed into its shell (`corral term ~/Claude claude`) |
+| `corral run [--set SET] DIR [CMD…]` | start CMD as a new task of a set (default: the last one) and show it; opens the set's window if none shows it |
 | `corral sets` | list sets (`*` = running) |
 | `corral save [SET]` | snapshot what a set runs now into its set file |
 | `corral edit [SET]` / `apply SET` | edit a set file / start what is missing |

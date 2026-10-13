@@ -7,13 +7,14 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import core, setfile, tmux
+from . import core, label, setfile, tmux
 
 EPILOG = """\
 examples:
   corral open school      open (or create) the set "school" in this terminal
   corral term             new terminal window that can be docked later (bind to Mod+Return)
   corral term ~/Claude claude   the same, in ~/Claude, with claude typed into its shell
+  corral run ~/Claude claude    claude as a new task of the last set, shown in its window
   corral sets             list sets: * running, files in ~/.config/corral/sets/
   corral save school      snapshot what "school" runs now into its set file
   corral stop             kill corral's tmux server and every task in it
@@ -67,6 +68,24 @@ def cmd_open(args: argparse.Namespace) -> int:
 def cmd_term(args: argparse.Namespace) -> int:
     directory = os.path.expanduser(args.dir) if args.dir else str(Path.home())
     core.open_terminal(core.loose_session_args(directory, shlex.join(args.command)))
+    return 0
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    """Start a command as a new task of a set, show it, open the set if no window shows it."""
+    name = args.set or _default_set()
+    if problem := _check_name(name):
+        return _fail(problem)
+    for problem in core.ensure_set(name):
+        print(f"corral: {setfile.set_path(name)}: {problem}", file=sys.stderr)
+    command = shlex.join(args.command)
+    wanted = label.tool_name(args.command[0]) if args.command else "shell"
+    task = core.unique_name(name, wanted if setfile.valid_set_name(wanted) else "task")
+    pane = core.add_task(name, task, args.dir, command)
+    core.show(name, pane, focus=True)
+    core.remember_last_set(name)
+    if core.first_client(name) is None:
+        core.open_terminal(["attach-session", "-t", f"={name}"])
     return 0
 
 
@@ -231,6 +250,10 @@ def build_parser() -> argparse.ArgumentParser:
         return p
 
     add("open", cmd_open, "open a set (default: the last one) in this terminal").add_argument("set", nargs="?")
+    p = add("run", cmd_run, "start a command as a new task in a set (default: the last one)")
+    p.add_argument("--set")
+    p.add_argument("dir")
+    p.add_argument("command", nargs=argparse.REMAINDER)
     p = add("term", cmd_term, "open a dockable terminal window, optionally running a command")
     p.add_argument("dir", nargs="?")
     p.add_argument("command", nargs=argparse.REMAINDER)

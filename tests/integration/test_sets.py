@@ -119,3 +119,17 @@ def test_snapshot_records_the_foreground_command(tmp_path):
             break
         time.sleep(0.1)
     assert core.snapshot_entries("work") == [Entry("sleeper", setfile.contract_dir(str(tmp_path)), "sleep 300")]
+
+
+def test_run_adds_the_command_to_the_last_set_and_shows_it(tmp_path):
+    from corral import cli
+    setfile.save("work", [Entry("one", "~")])
+    core.ensure_set("work")
+    core.remember_last_set("work")
+
+    assert cli.main(["run", str(tmp_path), "sleep", "300"]) == 0
+    assert cli.main(["run", str(tmp_path), "sleep", "300"]) == 0
+
+    assert names("work") == ["one", "sleep", "sleep-2"]
+    assert view_tasks("work") == ["", "sleep-2"]
+    assert core.tasks("work")[2].path == str(tmp_path)
