@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from corral import core, setfile, tmux
+from corral import core, label, setfile, tmux
 from corral.setfile import Entry
 
 
@@ -71,7 +71,7 @@ def test_dock_moves_a_loose_terminal_in_and_its_session_vanishes():
     pane = tmux.run("display-message", "-p", "-t", f"={loose}:", "#{pane_id}").strip()
     pid = core.pane_info(pane, "#{pane_pid}")
     for _ in range(50):  # until the pane's shell has started
-        if core.pane_info(pane, "#{pane_current_command}") in core.SHELLS:
+        if core.pane_info(pane, "#{pane_current_command}") in label.SHELLS:
             break
         time.sleep(0.1)
 
@@ -114,7 +114,7 @@ def test_closed_loose_window_is_reaped():
 def test_snapshot_records_the_foreground_command(tmp_path):
     setfile.save("work", [Entry("sleeper", str(tmp_path), "sleep 300")])
     core.ensure_set("work")
-    for _ in range(50):  # the shell needs a moment to start the command
+    for _ in range(150):  # the shell (zshrc) needs a moment to start the command
         if core.snapshot_entries("work")[0].command:
             break
         time.sleep(0.1)

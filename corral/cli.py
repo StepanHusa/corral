@@ -144,6 +144,15 @@ def cmd_step(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_new(args: argparse.Namespace) -> int:
+    if args.session not in core.set_sessions():
+        tmux.run("display-message", "-d", "2000", "corral: new tasks go into a set (prefix S)", check=False)
+        return 0
+    pane = core.add_task(args.session, core.unique_name(args.session, "shell"), args.dir)
+    core.show(args.session, pane, focus=True)
+    return 0
+
+
 def cmd_dock(args: argparse.Namespace) -> int:
     pane = args.pane or core.menu_context("pane") or os.environ.get("TMUX_PANE")
     if not pane:
@@ -226,6 +235,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("step", cmd_step)
     p.add_argument("session")
     p.add_argument("delta", type=int)
+    p = add("new", cmd_new)
+    p.add_argument("session")
+    p.add_argument("dir")
     p = add("dock", cmd_dock)
     p.add_argument("set")
     p.add_argument("--pane")

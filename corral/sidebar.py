@@ -3,22 +3,24 @@
 import curses
 import locale
 import os
+import signal
 import time
 import zlib
 
-from . import core, setfile, tmux
+from . import core, label, snapshot, tmux
 from .status import Tracker
 
 REFRESH_SECONDS = 1.0
 ROWS_PER_TASK = 2
 HEADER_ROWS = 2
+MIN_TASK_COLUMNS = 20  # the sidebar never squeezes the shown task below this
 
 HELP = [
     "j/k ↑/↓   show next/prev",
     "Enter l   focus the task",
     "click     show + focus",
-    "n         new task",
-    "r         rename",
+    "n         new shell (dir of shown)",
+    "r         label by hand (empty = auto)",
     "x         kill task",
     "u         undock (own window)",
     "D         move to another set",
@@ -73,6 +75,8 @@ class Sidebar:
         self.show_help = False
         self.tracker = Tracker()
         self.row_to_task: dict[int, int] = {}
+        self.labels: dict[str, tuple[str, str]] = {}
+        self.prompting = False
 
     # --- data -----------------------------------------------------------
 
@@ -100,6 +104,26 @@ class Sidebar:
             self.states[t.pane] = "bell" if state == "quiet" and t.bell else state
         self.tracker.forget_missing({t.pane for t in self.tasks})
         self.selected = max(0, min(self.selected, len(self.tasks) - 1))
+        self.labels = {t.pane: self._describe(t) for t in self.tasks}
+        self.keep_width()
+
+    @staticmethod
+    def _describe(t: core.Task) -> tuple[str, str]:
+        text, detail = label.describe(snapshot.foreground_argv(t.pid), t.command, t.path, t.title)
+        return (t.label or text), detail
+
+    def keep_width(self) -> None:
+        """Hold the sidebar at its fixed width when the window is resized."""
+        _, width = self.scr.getmaxyx()
+        wanted = core.sidebar_width()
+        if width == wanted or not os.environ.get("TMUX_PANE"):
+            return
+        window = tmux.run("display-message", "-p", "-t", os.environ["TMUX_PANE"],
+                          "#{window_width}", check=False).strip()
+        if window.isdigit():
+            wanted = max(10, min(wanted, int(window) - MIN_TASK_COLUMNS - 1))
+        if width != wanted:
+            tmux.run("resize-pane", "-t", os.environ["TMUX_PANE"], "-x", str(wanted), check=False)
 
     def _attached(self) -> bool:
         return tmux.run("display-message", "-p", "-t", f"={self.session}:",
@@ -142,11 +166,11 @@ class Sidebar:
             selected = index == self.selected
             base = curses.A_REVERSE if selected else 0
             marker = "▶" if t.pane == self.shown else " "
-            name = f"{marker} {t.name}"
-            self._put(row, 0, name.ljust(width - 2)[: width - 2], base | (curses.A_BOLD if t.pane == self.shown else 0))
+            text, detail = self.labels.get(t.pane, (t.name, ""))
+            name = f"{marker} {label.fit(text, width - 5)}"
+            self._put(row, 0, name.ljust(width - 2), base | (curses.A_BOLD if t.pane == self.shown else 0))
             self._put(row, width - 2, STATE_MARK[state], base | self._state_attr(state))
-            detail = f"  {t.command} · {setfile.contract_dir(t.path)}"
-            self._put(row + 1, 0, detail[: width - 1], curses.A_DIM)
+            self._put(row + 1, 2, label.fit(detail, width - 3), curses.A_DIM)
             self.row_to_task[row] = index
             self.row_to_task[row + 1] = index
 
@@ -174,9 +198,11 @@ class Sidebar:
         curses.echo()
         curses.curs_set(1)
         self.scr.timeout(-1)
+        self.prompting = True
         try:
             answer = self.scr.getstr(height - 1, min(len(question), width - 2), 200)
         finally:
+            self.prompting = False
             curses.noecho()
             curses.curs_set(0)
             self.scr.timeout(250)
@@ -204,11 +230,7 @@ class Sidebar:
         elif key == ord("n"):
             self._new_task()
         elif key == ord("r") and task:
-            name = self.prompt("rename to: ")
-            if name and setfile.valid_set_name(name):
-                core.rename_task(task.pane, core.unique_name(self.session, name))
-            elif name:
-                self.message = "names: letters, digits, . _ -"
+            core.set_label(task.pane, self.prompt("label (empty = auto): "))
         elif key == ord("x") and task:
             if self.confirm(f"kill {task.name}?"):
                 core.kill_task(task.pane)
@@ -249,18 +271,16 @@ class Sidebar:
                 core.show(self.session, self.tasks[index].pane, focus=True)
 
     def _new_task(self) -> None:
-        name = self.prompt("name: ")
-        if not name:
-            return
-        if not setfile.valid_set_name(name):
-            self.message = "names: letters, digits, . _ -"
-            return
-        shown = self.tasks[self._index_of(self.shown)] if self._index_of(self.shown) is not None else None
-        default_dir = setfile.contract_dir(shown.path) if shown else "~"
-        directory = self.prompt(f"dir [{default_dir}]: ") or default_dir
-        command = self.prompt("command (empty = shell): ")
-        pane = core.add_task(self.session, core.unique_name(self.session, name), directory, command)
+        """A new shell in the shown task's directory, shown and focused; no questions."""
+        index = self._index_of(self.shown)
+        directory = self.tasks[index].path if index is not None else "~"
+        pane = core.add_task(self.session, core.unique_name(self.session, "shell"), directory)
         core.show(self.session, pane, focus=True)
+
+    def nudged(self, _signum: int, _frame: object) -> None:
+        """SIGUSR1 from core.show: a task was shown from outside, redraw now."""
+        if not self.prompting:
+            curses.ungetch(curses.KEY_REFRESH)
 
 
 def _main(scr: "curses.window", session: str) -> None:
@@ -274,10 +294,13 @@ def _main(scr: "curses.window", session: str) -> None:
     curses.mouseinterval(0)
     scr.keypad(True)
     scr.timeout(250)
-    if os.environ.get("TMUX_PANE"):
-        tmux.run("select-pane", "-t", os.environ["TMUX_PANE"], "-T", f"corral · {session}", check=False)
-
     bar = Sidebar(scr, session)
+    signal.signal(signal.SIGUSR1, bar.nudged)
+    if os.environ.get("TMUX_PANE"):
+        tmux.run("select-pane", "-t", os.environ["TMUX_PANE"], "-T", f"corral · {session}", ";",
+                 "set-option", "-p", "-t", os.environ["TMUX_PANE"], "@corral_sidebar_pid", str(os.getpid()),
+                 check=False)
+
     last_refresh = 0.0
     while True:
         if time.monotonic() - last_refresh >= REFRESH_SECONDS:
@@ -288,7 +311,10 @@ def _main(scr: "curses.window", session: str) -> None:
             last_refresh = time.monotonic()
         bar.draw()
         key = scr.getch()
-        if key == -1 or key == curses.KEY_RESIZE:
+        if key == curses.KEY_RESIZE:
+            bar.keep_width()
+            continue
+        if key == -1:
             continue
         try:
             bar.handle(key)

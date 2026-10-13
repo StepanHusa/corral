@@ -11,11 +11,12 @@ never sees it, and it does not leak into other terminals.
 ```
 ┌─ one terminal window: `corral open school` ──────────────┐
 │ corral · school │                                         │
-│ ▶ monitor     ⟳ │                                         │
-│   mymonitor · ~ │     the shown task, full size           │
-│   agent-1     ● │     (a real, live pane)                 │
+│ ▶ mymonitor   ⟳ │                                         │
+│   ~             │     the shown task, full size           │
+│   Fix parser  ● │     (a real, live pane)                 │
 │   claude · ~/C… │                                         │
-│   notes       · │                                         │
+│   ~/Notes     · │                                         │
+│   shell         │                                         │
 └─────────────────┴─────────────────────────────────────────┘
 ```
 
@@ -53,16 +54,27 @@ Keys (prefix = Ctrl+Space, like `~/.tmux.conf`):
 |---|---|---|
 | anywhere in a set | Alt+j / Alt+k (Alt+↓/↑) | show next / previous task, focused |
 | | Alt+← / Alt+→ | focus sidebar / task |
+| | prefix n / p | show next / previous task |
+| | prefix c | new shell in this directory |
 | any corral pane | prefix D | dock this pane into a set (menu) |
 | | prefix U | undock this task into its own window |
 | | prefix S | switch set (menu) |
 | | prefix s | focus the sidebar |
 | sidebar | j/k, ↑/↓, wheel | show next / previous (focus stays in sidebar) |
 | | Enter, l, click | show and focus the task |
-| | n r x | new / rename / kill task |
+| | n r x | new shell (shown task's dir) / label by hand / kill task |
 | | u D | undock / move to another set |
 | | S s e a Q | switch set / save snapshot / edit file / apply file / close set |
 | | ? | help |
+
+Sidebar labels are derived from what runs, nothing is typed: an idle shell
+shows its directory, a program its name and the file it works on
+(`nvim TODO.md`), Claude Code the topic from its terminal title. `r` sets a
+label by hand (empty goes back to automatic). The sidebar keeps a fixed
+width, `@corral_sidebar_width` in `tmux.conf` (50 columns).
+
+tmux's own window and session keys (prefix 0–9, w, f, ', (, ), L, ., &, $)
+are removed: they would show a parked task without the sidebar.
 
 Sidebar marks: `⟳` busy (screen changed in the last 3 s), `●` done (was busy,
 went quiet while you were not looking; clears when shown), `!` bell,
@@ -104,6 +116,8 @@ directory and the foreground program's full command line; `claude` gets
 - The sidebar (`corral/sidebar.py`, curses) polls once a second: task list,
   one batched `capture-pane` of every task (hashes feed `status.py`).
   It runs in a restart loop; crashes go to `~/.local/state/corral/sidebar.log`.
+  Showing a task from elsewhere (Alt+j/k) sends the sidebar SIGUSR1 (pid in
+  the pane option `@corral_sidebar_pid`) so it redraws at once.
 - Menus are tmux's own `display-menu`, so they work from any pane. The pane
   and client a menu is about are passed through global options
   (`@corral_menu_pane/client`): pane ids start with `%`, which

@@ -12,15 +12,15 @@ Model (all on corral's private tmux server):
 
 import os
 import shlex
+import signal
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import setfile, snapshot, tmux
+from . import label, setfile, snapshot, tmux
 
-SIDEBAR_WIDTH = 30
-SHELLS = {"zsh", "bash", "sh", "fish", "dash"}
+SIDEBAR_WIDTH = 50  # columns; tmux.conf can override it with @corral_sidebar_width
 
 
 @dataclass(frozen=True)
@@ -33,11 +33,14 @@ class Task:
     path: str
     pid: int
     bell: bool
+    title: str
+    label: str  # set by hand (sidebar `r`); empty = derived from what runs
 
 
 _TASK_FMT = "\t".join([
     "#{pane_id}", "#{window_id}", "#{@corral_task}", "#{@corral_order}",
     "#{pane_current_command}", "#{pane_current_path}", "#{pane_pid}", "#{window_bell_flag}",
+    "#{pane_title}", "#{@corral_label}",
 ])
 
 
@@ -68,9 +71,10 @@ def tasks(session: str) -> list[Task]:
     rows = tmux.lines("list-panes", "-s", "-t", f"={session}", "-F", _TASK_FMT)
     found = []
     for r in rows:
-        if len(r) < 8 or not r[2]:
+        if len(r) < 10 or not r[2]:
             continue
-        found.append(Task(r[0], r[1], r[2], int(r[3] or 0), r[4], r[5], int(r[6] or 0), r[7] == "1"))
+        found.append(Task(r[0], r[1], r[2], int(r[3] or 0), r[4], r[5], int(r[6] or 0), r[7] == "1",
+                          r[8], r[9]))
     return sorted(found, key=lambda t: t.order)
 
 
@@ -104,6 +108,11 @@ def main_pane(session: str) -> str | None:
 def set_sessions() -> list[str]:
     rows = tmux.lines("list-sessions", "-F", "#{session_name}\t#{@corral_set}")
     return [r[0] for r in rows if len(r) > 1 and r[1] == "1"]
+
+
+def sidebar_width() -> int:
+    value = tmux.run("show-options", "-gqv", "@corral_sidebar_width", check=False).strip()
+    return int(value) if value.isdigit() else SIDEBAR_WIDTH
 
 
 def first_client(session: str) -> str | None:
@@ -167,7 +176,7 @@ def ensure_set(name: str) -> list[str]:
 def _rebuild_sidebar(session: str) -> None:
     current = tasks(session)
     if current:
-        side = tmux.run("split-window", "-hbd", "-l", str(SIDEBAR_WIDTH), "-t", current[0].pane,
+        side = tmux.run("split-window", "-hbd", "-l", str(sidebar_width()), "-t", current[0].pane,
                         "-P", "-F", "#{pane_id}", _sidebar_cmd(session)).strip()
         tmux.run("select-window", "-t", pane_info(side, "#{window_id}"))
     else:
@@ -191,8 +200,12 @@ def _mark_task(session: str, pane: str, name: str) -> None:
              "set-option", "-p", "-t", pane, "@corral_order", str(_next_order(session)))
 
 
-def rename_task(pane: str, name: str) -> None:
-    tmux.run("set-option", "-p", "-t", pane, "@corral_task", name)
+def set_label(pane: str, text: str) -> None:
+    """Label a task by hand; an empty text goes back to the derived label."""
+    if text:
+        tmux.run("set-option", "-p", "-t", pane, "@corral_label", text)
+    else:
+        tmux.run("set-option", "-p", "-u", "-t", pane, "@corral_label", check=False)
 
 
 def kill_task(pane: str) -> None:
@@ -217,8 +230,20 @@ def show(session: str, pane: str, focus: bool = False) -> None:
             tmux.run("swap-pane", "-d", "-s", pane, "-t", current)
         else:
             tmux.run("join-pane", "-d", "-h", "-s", pane, "-t", side)
-            tmux.run("resize-pane", "-t", side, "-x", str(SIDEBAR_WIDTH))
+            tmux.run("resize-pane", "-t", side, "-x", str(sidebar_width()))
     tmux.run("select-window", "-t", view, ";", "select-pane", "-t", pane if focus else side)
+    nudge_sidebar(side)
+
+
+def nudge_sidebar(side: str) -> None:
+    """Make the sidebar redraw now instead of at its next poll (Alt+j/k etc.)."""
+    pid = pane_info(side, "#{@corral_sidebar_pid}")
+    if not pid or not pid.isdigit() or int(pid) == os.getpid():
+        return
+    try:
+        os.kill(int(pid), signal.SIGUSR1)
+    except OSError:
+        pass  # sidebar restarting; its next poll catches up
 
 
 def fill_main(session: str) -> None:
@@ -243,7 +268,7 @@ def step(session: str, delta: int) -> None:
 
 def _derive_name(pane: str) -> str:
     command = pane_info(pane, "#{pane_current_command}") or "shell"
-    if command in SHELLS:
+    if command in label.SHELLS:
         path = pane_info(pane, "#{pane_current_path}") or ""
         return Path(path).name or "shell"
     return command
