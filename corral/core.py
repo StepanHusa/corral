@@ -343,18 +343,54 @@ def reap_loose() -> None:
 
 # --- terminals --------------------------------------------------------------
 
+# The window showing the sets has this window role, so i3 can put it on its
+# own workspace and find it again (for_window / [window_role="^corral$"]).
+SET_WINDOW_ROLE = "corral"
+
+
 def terminal_prefix() -> list[str]:
     return shlex.split(os.environ.get("CORRAL_TERMINAL", "xfce4-terminal -x"))
 
 
-def open_terminal(tmux_args: list[str]) -> None:
+def set_terminal_prefix() -> list[str]:
+    default = f"xfce4-terminal --role={SET_WINDOW_ROLE} -x"
+    return shlex.split(os.environ.get("CORRAL_SET_TERMINAL", default))
+
+
+def open_terminal(tmux_args: list[str], prefix: list[str] | None = None) -> None:
     """Open a new terminal window running a tmux client of corral's server."""
     if os.environ.get("CORRAL_NO_TERMINAL"):
         return
     env = {k: v for k, v in os.environ.items() if k != "TMUX"}
-    subprocess.Popen(terminal_prefix() + tmux.base_cmd() + tmux_args, env=env,
+    subprocess.Popen((prefix or terminal_prefix()) + tmux.base_cmd() + tmux_args, env=env,
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def present_set(name: str) -> None:
+    """Bring set `name` on screen: in corral's window if there is one, else a new one.
+
+    The existing window is raised through i3, which also switches to its
+    workspace; without i3 (or without that window) a new window opens.
+    """
+    if _focus_set_window():
+        clients = [r for r in tmux.lines("list-clients", "-F", "#{client_name}\t#{session_name}")
+                   if len(r) > 1 and r[1] in set_sessions()]
+        if clients and clients[0][1] != name:
+            tmux.run("switch-client", "-c", clients[0][0], "-t", f"={name}")
+        return
+    open_terminal(["attach-session", "-t", f"={name}"], set_terminal_prefix())
+
+
+def _focus_set_window() -> bool:
+    if os.environ.get("CORRAL_NO_TERMINAL"):
+        return False
+    try:
+        proc = subprocess.run(["i3-msg", "-q", f'[window_role="^{SET_WINDOW_ROLE}$"] focus'],
+                              capture_output=True)
+    except FileNotFoundError:
+        return False
+    return proc.returncode == 0  # 2: no window matches
 
 
 def loose_session_args(directory: str, command: str = "") -> list[str]:

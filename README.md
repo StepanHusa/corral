@@ -34,7 +34,8 @@ for clipboard yank.
 i3:
 ```
 bindsym $mod+Return exec corral term                  # dockable terminal
-bindsym $mod+t exec xfce4-terminal -x corral open     # the corral itself
+bindsym $mod+t exec corral window                     # go to the corral (open it if none)
+for_window [window_role="^corral$"] move container to workspace corral, workspace corral
 ```
 
 ## Use
@@ -42,8 +43,9 @@ bindsym $mod+t exec xfce4-terminal -x corral open     # the corral itself
 | Command | |
 |---|---|
 | `corral open [SET]` | open a set in this terminal (default: the last one); creates it if new, starts tasks from its file that are not running |
+| `corral window [SET]` | go to corral's window and its i3 workspace; opens it (window role `corral`, terminal from `CORRAL_SET_TERMINAL`) if there is none |
 | `corral term [DIR [CMD…]]` | new terminal window that looks plain but can be docked; CMD is typed into its shell (`corral term ~/Claude claude`) |
-| `corral run [--set SET] DIR [CMD…]` | start CMD as a new task of a set (default: the last one) and show it; opens the set's window if none shows it |
+| `corral run [--set SET] DIR [CMD…]` | start CMD as a new task of a set (default: the last one) and show it, in corral's window like `corral window` |
 | `corral sets` | list sets (`*` = running) |
 | `corral save [SET]` | snapshot what a set runs now into its set file |
 | `corral edit [SET]` / `apply SET` | edit a set file / start what is missing |

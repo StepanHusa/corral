@@ -12,6 +12,7 @@ from . import core, label, setfile, tmux
 EPILOG = """\
 examples:
   corral open school      open (or create) the set "school" in this terminal
+  corral window           go to corral's window (its i3 workspace), open it if none (Mod+t)
   corral term             new terminal window that can be docked later (bind to Mod+Return)
   corral term ~/Claude claude   the same, in ~/Claude, with claude typed into its shell
   corral run ~/Claude claude    claude as a new task of the last set, shown in its window
@@ -84,8 +85,19 @@ def cmd_run(args: argparse.Namespace) -> int:
     pane = core.add_task(name, task, args.dir, command)
     core.show(name, pane, focus=True)
     core.remember_last_set(name)
-    if core.first_client(name) is None:
-        core.open_terminal(["attach-session", "-t", f"={name}"])
+    core.present_set(name)
+    return 0
+
+
+def cmd_window(args: argparse.Namespace) -> int:
+    """Go to corral's window (and its workspace), opening it if there is none."""
+    name = args.set or _default_set()
+    if problem := _check_name(name):
+        return _fail(problem)
+    for problem in core.ensure_set(name):
+        print(f"corral: {setfile.set_path(name)}: {problem}", file=sys.stderr)
+    core.remember_last_set(name)
+    core.present_set(name)
     return 0
 
 
@@ -250,6 +262,8 @@ def build_parser() -> argparse.ArgumentParser:
         return p
 
     add("open", cmd_open, "open a set (default: the last one) in this terminal").add_argument("set", nargs="?")
+    add("window", cmd_window, "go to corral's window, open it if there is none (bind to Mod+t)"
+        ).add_argument("set", nargs="?")
     p = add("run", cmd_run, "start a command as a new task in a set (default: the last one)")
     p.add_argument("--set")
     p.add_argument("dir")

@@ -55,4 +55,5 @@ fi
 echo ""
 echo "Suggested i3 bindings (~/.config/i3/config):"
 echo "  bindsym \$mod+Return exec corral term                  # dockable terminal"
-echo "  bindsym \$mod+t exec xfce4-terminal -x corral open     # the corral itself"
+echo "  bindsym \$mod+t exec corral window                     # go to the corral (open it if none)"
+echo "  for_window [window_role=\"^corral\$\"] move container to workspace corral, workspace corral"
