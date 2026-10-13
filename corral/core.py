@@ -20,7 +20,7 @@ from pathlib import Path
 
 from . import label, setfile, snapshot, tmux
 
-SIDEBAR_WIDTH = 23  # columns (about 200 px); tmux.conf can override it with @corral_sidebar_width
+SIDEBAR_WIDTH = 23  # minimum columns (about 200 px); tmux.conf: @corral_sidebar_width
 
 
 @dataclass(frozen=True)
@@ -224,6 +224,7 @@ def show(session: str, pane: str, focus: bool = False) -> None:
     if side is None:
         return
     view = pane_info(side, "#{window_id}")
+    hidden = sidebar_hidden(side)
     if pane_info(pane, "#{window_id}") != view:
         current = main_pane(session)
         if current:
@@ -231,8 +232,25 @@ def show(session: str, pane: str, focus: bool = False) -> None:
         else:
             tmux.run("join-pane", "-d", "-h", "-s", pane, "-t", side)
             tmux.run("resize-pane", "-t", side, "-x", str(sidebar_width()))
-    tmux.run("select-window", "-t", view, ";", "select-pane", "-t", pane if focus else side)
+    if hidden:  # stay hidden: the new task gets the zoom, and the focus
+        tmux.run("select-window", "-t", view, ";", "select-pane", "-t", pane)
+        if not sidebar_hidden(side):
+            tmux.run("resize-pane", "-Z", "-t", pane)
+    else:
+        tmux.run("select-window", "-t", view, ";", "select-pane", "-t", pane if focus else side)
     nudge_sidebar(side)
+
+
+def sidebar_hidden(side: str) -> bool:
+    """The sidebar is hidden by zooming the shown task over the whole view."""
+    return pane_info(side, "#{window_zoomed_flag}") == "1"
+
+
+def toggle_sidebar(session: str) -> None:
+    """Hide the sidebar (zoom the shown task) or bring it back."""
+    shown = main_pane(session)
+    if shown:
+        tmux.run("resize-pane", "-Z", "-t", shown)
 
 
 def nudge_sidebar(side: str) -> None:

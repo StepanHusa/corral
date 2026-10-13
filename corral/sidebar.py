@@ -22,6 +22,7 @@ HELP = [
     "n         new shell (dir of shown)",
     "r         label by hand (empty = auto)",
     "x         kill task",
+    "h         hide sidebar",
     "u         undock (own window)",
     "D         move to another set",
     "S         switch set",
@@ -33,7 +34,8 @@ HELP = [
     "",
     "anywhere: Alt+j/k next/prev",
     "prefix D dock, U undock,",
-    "prefix S sets, s sidebar",
+    "prefix S sets, s sidebar,",
+    "prefix b hide/show this",
 ]
 
 STATE_MARK = {"done": "●", "quiet": "○", "bell": "▲"}
@@ -122,16 +124,16 @@ class Sidebar:
         return (t.label or text), detail
 
     def keep_width(self) -> None:
-        """Hold the sidebar at its fixed width when the window is resized."""
+        """Keep the sidebar at least its minimum width; wider is fine (drag the border)."""
         _, width = self.scr.getmaxyx()
         wanted = core.sidebar_width()
-        if width == wanted or not os.environ.get("TMUX_PANE"):
+        if width >= wanted or not os.environ.get("TMUX_PANE"):
             return
         window = tmux.run("display-message", "-p", "-t", os.environ["TMUX_PANE"],
                           "#{window_width}", check=False).strip()
         if window.isdigit():
             wanted = max(10, min(wanted, int(window) - MIN_TASK_COLUMNS - 1))
-        if width != wanted:
+        if width < wanted:
             tmux.run("resize-pane", "-t", os.environ["TMUX_PANE"], "-x", str(wanted), check=False)
 
     def _attached(self) -> bool:
@@ -272,6 +274,8 @@ class Sidebar:
         elif key == ord("Q"):
             if self.confirm(f"close set {self.session} and kill its tasks?"):
                 core.close_set(self.session)
+        elif key == ord("h"):
+            core.toggle_sidebar(self.session)
         elif key == ord("?"):
             self.show_help = not self.show_help
 

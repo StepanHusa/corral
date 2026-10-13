@@ -17,7 +17,8 @@ examples:
   corral stop             kill corral's tmux server and every task in it
 
 inside corral: Alt+j/k next/prev task, prefix D dock, prefix U undock,
-prefix S switch set, prefix s focus the sidebar (? there for its keys)
+prefix S switch set, prefix s focus the sidebar, prefix b hide/show it
+(? in the sidebar for its keys)
 """
 
 
@@ -204,6 +205,11 @@ def cmd_focus_sidebar(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_toggle_sidebar(args: argparse.Namespace) -> int:
+    core.toggle_sidebar(args.session)
+    return 0
+
+
 def cmd_reap(args: argparse.Namespace) -> int:
     core.reap_loose()
     return 0
@@ -248,6 +254,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("set-menu", cmd_set_menu).add_argument("client")
     add("switch", cmd_switch).add_argument("set")
     add("focus-sidebar", cmd_focus_sidebar).add_argument("session")
+    add("toggle-sidebar", cmd_toggle_sidebar).add_argument("session")
     add("reap", cmd_reap)
     return parser
 

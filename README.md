@@ -60,9 +60,11 @@ Keys (prefix = Ctrl+Space, like `~/.tmux.conf`):
 | | prefix U | undock this task into its own window |
 | | prefix S | switch set (menu) |
 | | prefix s | focus the sidebar |
+| | prefix b | hide / show the sidebar |
 | sidebar | j/k, ↑/↓, wheel | show next / previous (focus stays in sidebar) |
 | | Enter, l, click | show and focus the task |
 | | n r x | new shell (shown task's dir) / label by hand / kill task |
+| | h | hide the sidebar (prefix b or prefix s brings it back) |
 | | u D | undock / move to another set |
 | | S s e a Q | switch set / save snapshot / edit file / apply file / close set |
 | | ? | help |
@@ -70,8 +72,10 @@ Keys (prefix = Ctrl+Space, like `~/.tmux.conf`):
 Sidebar labels are derived from what runs, nothing is typed: an idle shell
 shows its directory, a program its name and the file it works on
 (`nvim TODO.md`), Claude Code the topic from its terminal title. `r` sets a
-label by hand (empty goes back to automatic). The sidebar keeps a fixed
-width, `@corral_sidebar_width` in `tmux.conf` (23 columns, about 200 px).
+label by hand (empty goes back to automatic). The sidebar has a minimum
+width, `@corral_sidebar_width` in `tmux.conf` (23 columns, about 200 px);
+drag its border to make it wider. Hiding it zooms the shown task; Alt+j/k
+keep it hidden.
 The selected row is gray with white text.
 
 tmux's own window and session keys (prefix 0–9, w, f, ', (, ), L, ., &, $)
