@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import shlex
 import sys
 import traceback
 from pathlib import Path
@@ -12,6 +13,7 @@ EPILOG = """\
 examples:
   corral open school      open (or create) the set "school" in this terminal
   corral term             new terminal window that can be docked later (bind to Mod+Return)
+  corral term ~/Claude claude   the same, in ~/Claude, with claude typed into its shell
   corral sets             list sets: * running, files in ~/.config/corral/sets/
   corral save school      snapshot what "school" runs now into its set file
   corral stop             kill corral's tmux server and every task in it
@@ -64,7 +66,7 @@ def cmd_open(args: argparse.Namespace) -> int:
 
 def cmd_term(args: argparse.Namespace) -> int:
     directory = os.path.expanduser(args.dir) if args.dir else str(Path.home())
-    core.open_terminal(core.loose_session_args(directory))
+    core.open_terminal(core.loose_session_args(directory, shlex.join(args.command)))
     return 0
 
 
@@ -229,7 +231,9 @@ def build_parser() -> argparse.ArgumentParser:
         return p
 
     add("open", cmd_open, "open a set (default: the last one) in this terminal").add_argument("set", nargs="?")
-    add("term", cmd_term, "open a dockable terminal window").add_argument("dir", nargs="?")
+    p = add("term", cmd_term, "open a dockable terminal window, optionally running a command")
+    p.add_argument("dir", nargs="?")
+    p.add_argument("command", nargs=argparse.REMAINDER)
     add("sets", cmd_sets, "list sets")
     add("save", cmd_save, "snapshot a running set into its set file").add_argument("set", nargs="?")
     add("edit", cmd_edit, "edit a set file").add_argument("set", nargs="?")

@@ -357,10 +357,17 @@ def open_terminal(tmux_args: list[str]) -> None:
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 
-def loose_session_args(directory: str) -> list[str]:
-    """tmux args that create and attach a fresh loose session."""
-    return ["new-session", "-c", directory, ";",
+def loose_session_args(directory: str, command: str = "") -> list[str]:
+    """tmux args that create and attach a fresh loose session.
+
+    A command is typed into its shell, as in set files: when it exits you
+    are left in a shell there, like a terminal where you typed it.
+    """
+    args = ["new-session", "-c", directory, ";",
             "set-option", "@corral_loose", "1", ";", *_server_options()]
+    if command:
+        args += [";", "send-keys", "-l", command, ";", "send-keys", "Enter"]
+    return args
 
 
 # --- snapshots --------------------------------------------------------------
