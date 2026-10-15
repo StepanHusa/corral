@@ -31,6 +31,8 @@ SETS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/corral/sets"
 
 command -v tmux >/dev/null || { echo "error: tmux not found (sudo apt install tmux)" >&2; exit 2; }
 [ -x /usr/bin/python3 ] || { echo "error: /usr/bin/python3 not found" >&2; exit 2; }
+/usr/bin/python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' \
+    || { echo "error: /usr/bin/python3 is older than 3.10" >&2; exit 2; }
 /usr/bin/python3 -c 'import curses' 2>/dev/null || { echo "error: python3 curses missing" >&2; exit 2; }
 version="$(tmux -V | grep -oE '[0-9]+\.[0-9]+' | head -1)"
 if [ "$(printf '%s\n3.3\n' "$version" | sort -V | head -1)" != "3.3" ]; then

@@ -1,7 +1,7 @@
 """Set files: one plain-text file per set, one task per line.
 
     # name     directory    command (rest of the line; empty = just a shell)
-    monitor    ~            mymonitor
+    monitor    ~            htop
     agent-1    ~/Claude     claude --continue
 
 Name and directory cannot contain spaces; the command is everything after
