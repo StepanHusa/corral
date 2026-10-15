@@ -125,8 +125,10 @@ Marks: spinning `◐` busy (the screen or title changed in the last 2 s),
 shown), `▲` bell, `○` quiet. They come from the screen, so they work for any
 program; a constantly updating monitor is always busy.
 
-The sidebar is at least `@corral_sidebar_width` columns wide (23, set in
-`tmux.conf`); drag its border to widen it. Hiding it zooms the shown task,
+The sidebar is `@corral_sidebar_width` columns wide (23, set in
+`tmux.conf`); drag its border to widen it. That width is kept when the
+window is resized (an i3 split, a terminal docked or closed), and never goes
+below the minimum. Hiding it zooms the shown task,
 and Alt+j/k keep it hidden.
 
 ## Set files

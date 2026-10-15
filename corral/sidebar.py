@@ -38,6 +38,20 @@ HELP = [
     "prefix b hide/show this",
 ]
 
+def plan_width(own: int, window: int, last_window: int | None, chosen: int,
+               minimum: int) -> tuple[int, int]:
+    """(width to give the sidebar, width the user has chosen).
+
+    The window got resized (i3 split, a terminal docked or closed): go back to
+    the chosen width, tmux having shared the change out between both panes.
+    Only the sidebar changed: the user dragged its border, remember that
+    (never below the minimum). The shown task always keeps MIN_TASK_COLUMNS.
+    """
+    if last_window is not None and window == last_window and own != chosen:
+        chosen = max(minimum, own)
+    return max(10, min(chosen, window - MIN_TASK_COLUMNS - 1)), chosen
+
+
 STATE_MARK = {"done": "●", "quiet": "○", "bell": "▲"}
 BUSY_FRAMES = "◐◓◑◒"  # busy spins, one frame per redraw tick
 # 256-color palette: selected row is a slightly lighter gray with pure white text
@@ -88,6 +102,8 @@ class Sidebar:
         self.row_to_task: dict[int, int] = {}
         self.labels: dict[str, tuple[str, str]] = {}
         self.prompting = False
+        self.chosen_width: int | None = None
+        self.last_window: int | None = None
 
     # --- data -----------------------------------------------------------
 
@@ -117,7 +133,6 @@ class Sidebar:
         self.tracker.forget_missing({t.pane for t in self.tasks})
         self.selected = max(0, min(self.selected, len(self.tasks) - 1))
         self.labels = {t.pane: self._describe(t) for t in self.tasks}
-        self.keep_width()
 
     @staticmethod
     def _describe(t: core.Task) -> tuple[str, str]:
@@ -125,17 +140,27 @@ class Sidebar:
         return (t.label or text), detail
 
     def keep_width(self) -> None:
-        """Keep the sidebar at least its minimum width; wider is fine (drag the border)."""
-        _, width = self.scr.getmaxyx()
-        wanted = core.sidebar_width()
-        if width >= wanted or not os.environ.get("TMUX_PANE"):
+        """Hold the width the user chose (see plan_width); called on every resize."""
+        pane = os.environ.get("TMUX_PANE")
+        if not pane:
             return
-        window = tmux.run("display-message", "-p", "-t", os.environ["TMUX_PANE"],
-                          "#{window_width}", check=False).strip()
-        if window.isdigit():
-            wanted = max(10, min(wanted, int(window) - MIN_TASK_COLUMNS - 1))
-        if width < wanted:
-            tmux.run("resize-pane", "-t", os.environ["TMUX_PANE"], "-x", str(wanted), check=False)
+        row = tmux.run("display-message", "-p", "-t", pane,
+                       "#{window_width}\t#{@corral_sidebar_chosen}", check=False).rstrip("\n").split("\t")
+        if not row[0].isdigit():
+            return
+        window = int(row[0])
+        minimum = core.sidebar_width()
+        if self.chosen_width is None:  # a restarted sidebar keeps what was chosen before
+            stored = row[1] if len(row) > 1 else ""
+            self.chosen_width = int(stored) if stored.isdigit() else minimum
+        _, own = self.scr.getmaxyx()
+        width, chosen = plan_width(own, window, self.last_window, self.chosen_width, minimum)
+        self.last_window = window
+        if chosen != self.chosen_width:
+            self.chosen_width = chosen
+            tmux.run("set-option", "-p", "-t", pane, "@corral_sidebar_chosen", str(chosen), check=False)
+        if width != own:
+            tmux.run("resize-pane", "-t", pane, "-x", str(width), check=False)
 
     def _attached(self) -> bool:
         return tmux.run("display-message", "-p", "-t", f"={self.session}:",
@@ -332,6 +357,7 @@ def _main(scr: "curses.window", session: str) -> None:
         tmux.run("select-pane", "-t", os.environ["TMUX_PANE"], "-T", f"corral · {session}", ";",
                  "set-option", "-p", "-t", os.environ["TMUX_PANE"], "@corral_sidebar_pid", str(os.getpid()),
                  check=False)
+    bar.keep_width()
 
     last_refresh = 0.0
     while True:
