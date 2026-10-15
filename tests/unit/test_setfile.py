@@ -35,3 +35,11 @@ def test_contract_and_expand_dir(monkeypatch, tmp_path):
     assert setfile.contract_dir(str(tmp_path / "proj")) == "~/proj"
     assert setfile.expand_dir("~/proj") == str(tmp_path / "proj")
     assert setfile.expand_dir("~/missing") == str(tmp_path)  # falls back to home
+
+
+def test_set_names_must_survive_as_tmux_session_names():
+    assert setfile.valid_set_name("school")
+    assert setfile.valid_set_name("own-projects_2")
+    assert not setfile.valid_set_name("a.b")  # tmux would rename it a_b
+    assert not setfile.valid_set_name("_t1")  # reserved for loose terminals
+    assert not setfile.valid_set_name("-x")

@@ -33,7 +33,7 @@ def _fail(message: str, code: int = 1) -> int:
 
 def _check_name(name: str) -> str | None:
     if not setfile.valid_set_name(name):
-        return f"bad set name {name!r} (letters, digits, . _ -)"
+        return f"bad set name {name!r} (letters, digits, _ -; starting with a letter or digit)"
     return None
 
 
@@ -59,8 +59,7 @@ def cmd_open(args: argparse.Namespace) -> int:
     core.remember_last_set(name)
     here = _current_session()
     if here is not None:
-        client = core.first_client(here)
-        tmux.run("switch-client", *(["-c", client] if client else []), "-t", f"={name}")
+        core.switch_client(core.first_client(here), name)
         return 0
     env = {k: v for k, v in os.environ.items() if k != "TMUX"}
     os.execvpe("tmux", tmux.base_cmd() + ["attach-session", "-t", f"={name}"], env)
@@ -151,7 +150,11 @@ def cmd_stop(args: argparse.Namespace) -> int:
         print("corral is not running")
         return 0
     if not args.yes:
-        answer = input("kill corral's tmux server and every task in it? [y/N] ")
+        sets = core.set_sessions()
+        tasks = sum(len(core.tasks(s)) for s in sets)
+        terms = len(core.loose_sessions())
+        answer = input(f"kill corral's tmux server: {len(sets)} set(s) with {tasks} task(s), "
+                       f"and {terms} open `corral term` window(s)? [y/N] ")
         if answer.strip().lower() != "y":
             return 1
     tmux.run("kill-server", check=False)
@@ -221,9 +224,9 @@ def cmd_switch(args: argparse.Namespace) -> int:
     if problem := _check_name(args.set):
         tmux.run("display-message", f"corral: {problem}", check=False)
         return 1
-    client = core.menu_context("client")
+    client = core.menu_context("client") or None
     problems = core.ensure_set(args.set)
-    tmux.run("switch-client", *(["-c", client] if client else []), "-t", f"={args.set}")
+    core.switch_client(client, args.set)
     core.remember_last_set(args.set)
     if problems:
         tmux.run("display-message", *(["-c", client] if client else []),

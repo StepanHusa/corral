@@ -19,6 +19,7 @@ def corral_env(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("CORRAL_NO_TERMINAL", "1")
+    monkeypatch.setenv("SHELL", "/bin/sh")  # fast and the same everywhere, unlike a user's zshrc
     monkeypatch.delenv("TMUX", raising=False)
     yield
     tmux.run("kill-server", check=False)
@@ -114,11 +115,14 @@ def test_closed_loose_window_is_reaped():
 def test_snapshot_records_the_foreground_command(tmp_path):
     setfile.save("work", [Entry("sleeper", str(tmp_path), "sleep 300")])
     core.ensure_set("work")
-    for _ in range(150):  # the shell (zshrc) needs a moment to start the command
-        if core.snapshot_entries("work")[0].command:
+    expected = [Entry("sleeper", setfile.contract_dir(str(tmp_path)), "sleep 300")]
+    # The login shell first runs its profile, whose helpers (im-config's
+    # systemd-cat ...) are briefly in the foreground too; wait for the command.
+    for _ in range(150):
+        if core.snapshot_entries("work") == expected:
             break
         time.sleep(0.1)
-    assert core.snapshot_entries("work") == [Entry("sleeper", setfile.contract_dir(str(tmp_path)), "sleep 300")]
+    assert core.snapshot_entries("work") == expected
 
 
 def test_run_adds_the_command_to_the_last_set_and_shows_it(tmp_path):
@@ -133,3 +137,53 @@ def test_run_adds_the_command_to_the_last_set_and_shows_it(tmp_path):
     assert names("work") == ["one", "sleep", "sleep-2"]
     assert view_tasks("work") == ["", "sleep-2"]
     assert core.tasks("work")[2].path == str(tmp_path)
+
+
+def attach_control_client(session):
+    """A real tmux client (control mode) attached to `session`; returns (process, client name)."""
+    env = {k: v for k, v in os.environ.items() if k != "TMUX"}
+    proc = subprocess.Popen(tmux.base_cmd() + ["-C", "attach", "-t", f"={session}"],
+                            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, env=env)
+    for _ in range(50):
+        clients = tmux.lines("list-clients", "-t", f"={session}", "-F", "#{client_name}")
+        if clients:
+            return proc, clients[0][0]
+        time.sleep(0.1)
+    raise AssertionError("control client did not attach")
+
+
+def test_switching_a_loose_terminal_to_a_set_docks_it_instead_of_killing_it():
+    core.ensure_set("work")
+    loose = tmux.run("new-session", "-d", "-s", core._loose_name(), "-P", "-F", "#{session_name}",
+                     "-c", "/tmp", "sleep 300").strip()
+    tmux.run("set-option", "-t", f"={loose}:", "@corral_loose", "1")
+    pane = tmux.run("display-message", "-p", "-t", f"={loose}:", "#{pane_id}").strip()
+    pid = core.pane_info(pane, "#{pane_pid}")
+    proc, client = attach_control_client(loose)
+    try:
+        core.switch_client(client, "work")
+        core.reap_loose()
+
+        assert core.pane_info(pane, "#{session_name}") == "work"
+        assert core.pane_info(pane, "#{pane_pid}") == pid  # still the same process
+        assert not tmux.has_session(loose)
+        assert view_tasks("work")[1] == names("work")[-1]  # and it is shown
+    finally:
+        proc.stdin.close()
+        proc.wait(timeout=5)
+
+
+def test_loose_sessions_cannot_collide_with_set_names():
+    core.ensure_set("work")
+    loose = core.undock(core.add_task("work", "x", "~"))
+
+    assert loose.startswith(core.LOOSE_PREFIX)
+    assert not setfile.valid_set_name(loose)
+
+
+def test_a_session_that_is_not_a_set_is_never_turned_into_one():
+    tmux.run("new-session", "-d", "-s", "2")
+
+    with pytest.raises(tmux.TmuxError):
+        core.ensure_set("2")
+    assert core.sidebar_pane("2") is None

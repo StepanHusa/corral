@@ -131,7 +131,8 @@ and Alt+j/k keep it hidden.
 
 ## Set files
 
-`~/.config/corral/sets/<set>.conf`, one task per line:
+`~/.config/corral/sets/<set>.conf`, one task per line. Set names are
+letters, digits, `_` and `-`, starting with a letter or digit.
 
 ```
 # name     directory    command (rest of the line; empty = just a shell)
@@ -161,6 +162,9 @@ directory and the foreground program's full command line; `claude` gets
   were attached once and now have no client, so closing the window ends the
   task like in a normal terminal. Docking moves the pane into a set; the
   loose session is left empty, tmux destroys it and the window closes.
+  Switching a loose terminal to a set (prefix S, or `corral open` typed in
+  it) docks what ran there into that set, so nothing is lost. Loose
+  sessions are named `_t…`, which no set name can be.
 - The sidebar (`corral/sidebar.py`, curses) polls twice a second: the task
   list and one batched `capture-pane` of every task (hashes feed
   `status.py`). It runs in a restart loop; crashes go to

@@ -231,8 +231,10 @@ class Sidebar:
             self.scr.timeout(250)
         return answer.decode(errors="replace").strip()
 
-    def confirm(self, question: str) -> bool:
-        return self.prompt(f"{question} [y/N] ").lower() == "y"
+    def confirm(self, question: str, default: bool = False) -> bool:
+        """Ask y/n; Enter alone gives the default (the capital letter)."""
+        answer = self.prompt(f"{question} {'[Y/n]' if default else '[y/N]'} ").lower()
+        return default if not answer else answer == "y"
 
     def client(self) -> str | None:
         return core.first_client(self.session)
@@ -255,7 +257,7 @@ class Sidebar:
         elif key == ord("r") and task:
             core.set_label(task.pane, self.prompt("label (empty = auto): "))
         elif key == ord("x") and task:
-            if self.confirm(f"kill {task.name}?"):
+            if self.confirm(f"kill {self.labels.get(task.pane, (task.name, ''))[0]}?", default=True):
                 core.kill_task(task.pane)
         elif key == ord("u") and task:
             core.undock(task.pane)

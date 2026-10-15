@@ -13,7 +13,10 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")  # task names
+# Set names are tmux session names: tmux turns '.' into '_', and a leading
+# '_' is kept for corral's own loose sessions (core.LOOSE_PREFIX).
+SET_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 HEADER = (
     "# corral set file: one task per line.\n"
@@ -45,7 +48,7 @@ def available_sets() -> list[str]:
 
 
 def valid_set_name(name: str) -> bool:
-    return bool(NAME_RE.match(name))
+    return bool(SET_NAME_RE.match(name))
 
 
 def parse(text: str) -> tuple[list[Entry], list[str]]:

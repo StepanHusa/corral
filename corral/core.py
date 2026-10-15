@@ -11,6 +11,7 @@ Model (all on corral's private tmux server):
 """
 
 import os
+import secrets
 import shlex
 import signal
 import subprocess
@@ -20,6 +21,8 @@ from pathlib import Path
 
 from . import label, setfile, snapshot, tmux
 
+# Loose sessions get names no set can have (set names start with a letter or digit).
+LOOSE_PREFIX = "_t"
 SIDEBAR_WIDTH = 23  # minimum columns (about 200 px); tmux.conf: @corral_sidebar_width
 
 
@@ -115,6 +118,15 @@ def sidebar_width() -> int:
     return int(value) if value.isdigit() else SIDEBAR_WIDTH
 
 
+def loose_sessions() -> list[str]:
+    rows = tmux.lines("list-sessions", "-F", "#{session_name}\t#{@corral_loose}")
+    return [r[0] for r in rows if len(r) > 1 and r[1] == "1"]
+
+
+def _loose_name() -> str:
+    return LOOSE_PREFIX + secrets.token_hex(3)
+
+
 def first_client(session: str) -> str | None:
     rows = tmux.lines("list-clients", "-t", f"={session}", "-F", "#{client_name}")
     return rows[0][0] if rows else None
@@ -153,6 +165,8 @@ def ensure_set(name: str) -> list[str]:
     Tasks already running are left alone; only missing ones are started.
     Returns problems found in the set file (bad lines are skipped).
     """
+    if tmux.has_session(name) and session_option(name, "@corral_set") != "1":
+        raise tmux.TmuxError(f"{name!r} is a session of corral's server but not a set")
     if not tmux.has_session(name):
         tmux.run("new-session", "-d", "-s", name, "-n", "corral", "-x", "200", "-y", "50",
                  "-c", str(Path.home()), _sidebar_cmd(name), ";", *_server_options())
@@ -318,13 +332,28 @@ def dock(pane: str, target: str) -> list[str]:
 def undock(pane: str) -> str:
     """Move a task out into its own loose session and open a terminal window on it."""
     path = pane_info(pane, "#{pane_current_path}") or str(Path.home())
-    loose = tmux.run("new-session", "-d", "-P", "-F", "#{session_name}", "-c", path).strip()
+    loose = tmux.run("new-session", "-d", "-s", _loose_name(), "-P", "-F", "#{session_name}",
+                     "-c", path).strip()
     placeholder = tmux.run("display-message", "-p", "-t", f"={loose}:", "#{window_id}").strip()
     tmux.run("set-option", "-t", f"={loose}:", "@corral_loose", "1")
     _move_pane_to(pane, loose)
     tmux.run("kill-window", "-t", placeholder)
     open_terminal(["attach-session", "-t", f"={loose}"])
     return loose
+
+
+def switch_client(client: str | None, target: str) -> None:
+    """Show set `target` in a client's window.
+
+    A loose terminal switched this way joins the set: its pane is docked
+    there, so what ran in it lives on as a task (only closing a window ends it).
+    """
+    which = ["-c", client] if client else []
+    old = tmux.run("display-message", "-p", *which, "#{session_name}", check=False).strip()
+    tmux.run("switch-client", *which, "-t", f"={target}")
+    if old and old != target and old in loose_sessions():
+        for row in tmux.lines("list-panes", "-s", "-t", f"={old}", "-F", "#{pane_id}"):
+            dock(row[0], target)
 
 
 def reap_loose() -> None:
@@ -399,7 +428,7 @@ def loose_session_args(directory: str, command: str = "") -> list[str]:
     A command is typed into its shell, as in set files: when it exits you
     are left in a shell there, like a terminal where you typed it.
     """
-    args = ["new-session", "-c", directory, ";",
+    args = ["new-session", "-s", _loose_name(), "-c", directory, ";",
             "set-option", "@corral_loose", "1", ";", *_server_options()]
     if command:
         args += [";", "send-keys", "-l", command, ";", "send-keys", "Enter"]
