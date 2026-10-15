@@ -15,17 +15,7 @@ right, and every other window on your desktop stays clean.
 - **Isolated**: corral runs on its own tmux server (`tmux -L corral`) with its
   own config, so your normal tmux, its plugins and its sessions never see it.
 
-```
-┌─ corral window ──────────────────────────────────────────┐
-│ corral · school │                                         │
-│ ▶ mymonitor  ◐  │                                         │
-│   ~             │     the shown task, full size           │
-│   Fix parser ●  │     (a real, live terminal)             │
-│   claude · ~/C… │                                         │
-│   ~/Notes    ○  │                                         │
-│   shell         │                                         │
-└─────────────────┴─────────────────────────────────────────┘
-```
+![corral: the sidebar of a set on the left, the shown task (btop) on the right](docs/screenshot.png)
 
 ## Why
 
