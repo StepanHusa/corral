@@ -10,7 +10,7 @@ import zlib
 from . import core, label, snapshot, tmux
 from .status import Tracker
 
-REFRESH_SECONDS = 1.0
+REFRESH_SECONDS = 0.5
 ROWS_PER_TASK = 2
 HEADER_ROWS = 2
 MIN_TASK_COLUMNS = 20  # the sidebar never squeezes the shown task below this
@@ -110,7 +110,8 @@ class Sidebar:
         watched = core.session_option(self.session, "@corral_set") == "1" and self._attached()
         screens = capture_screens([t.pane for t in self.tasks])
         for t in self.tasks:
-            screen_hash = zlib.crc32(screens.get(t.pane, "").encode())
+            # the title counts too: Claude Code animates it while it works
+            screen_hash = zlib.crc32((t.title + "\0" + screens.get(t.pane, "")).encode())
             state = self.tracker.update(t.pane, screen_hash, now, shown=watched and t.pane == self.shown)
             self.states[t.pane] = "bell" if state == "quiet" and t.bell else state
         self.tracker.forget_missing({t.pane for t in self.tasks})

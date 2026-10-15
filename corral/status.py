@@ -1,7 +1,7 @@
 """Task activity states, derived from how a pane's screen changes over time.
 
 Works for any program, not just agents: the sidebar hashes every task's
-visible screen about once a second and feeds the hashes in here.
+visible screen and title twice a second and feeds the hashes in here.
 
     busy   the screen changed within the last BUSY_SECONDS
     done   it was busy, went quiet while you were not looking at it
@@ -11,8 +11,8 @@ visible screen about once a second and feeds the hashes in here.
 
 from dataclasses import dataclass
 
-BUSY_SECONDS = 3.0
-STARTUP_SECONDS = 8.0  # a new pane drawing its first prompt is not "activity"
+BUSY_SECONDS = 2.0
+STARTUP_SECONDS = 4.0  # a new pane drawing its first prompt is not "activity"
 
 
 @dataclass

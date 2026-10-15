@@ -84,7 +84,7 @@ The selected row is gray with white text.
 tmux's own window and session keys (prefix 0–9, w, f, ', (, ), L, ., &, $)
 are removed: they would show a parked task without the sidebar.
 
-Sidebar marks: spinning `◐` (yellow) busy (screen changed in the last 3 s),
+Sidebar marks: spinning `◐` (yellow) busy (screen or title changed in the last 2 s),
 `●` (green) done (was busy, went quiet while you were not looking; clears
 when shown), `▲` (red) bell, `○` quiet. These come from the screen, so they
 work for any program; a constantly updating monitor is always busy.
@@ -121,7 +121,7 @@ directory and the foreground program's full command line; `claude` gets
   were attached once and now have no client — so closing the window ends the
   task, like a normal terminal. Docking moves the pane into a set; the loose
   session is left empty, tmux destroys it and the window closes by itself.
-- The sidebar (`corral/sidebar.py`, curses) polls once a second: task list,
+- The sidebar (`corral/sidebar.py`, curses) polls twice a second: task list,
   one batched `capture-pane` of every task (hashes feed `status.py`).
   It runs in a restart loop; crashes go to `~/.local/state/corral/sidebar.log`.
   Showing a task from elsewhere (Alt+j/k) sends the sidebar SIGUSR1 (pid in
