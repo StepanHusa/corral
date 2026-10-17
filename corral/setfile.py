@@ -100,8 +100,13 @@ def save(set_name: str, entries: list[Entry]) -> Path:
 
 
 def expand_dir(directory: str) -> str:
+    """An existing absolute directory, else home. (tmux would resolve a
+    relative one from the server's directory, not the caller's.)"""
     expanded = os.path.expanduser(directory)
-    return expanded if os.path.isdir(expanded) else str(Path.home())
+    try:
+        return os.path.abspath(expanded) if os.path.isdir(expanded) else str(Path.home())
+    except OSError:  # the caller's directory was deleted
+        return str(Path.home())
 
 
 def contract_dir(directory: str) -> str:
