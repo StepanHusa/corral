@@ -75,7 +75,7 @@ For example `CORRAL_TERMINAL="kitty"` and
 |---|---|
 | `corral open [SET]` | open a set in this terminal (default: the last one); creates it if new, starts tasks from its file that are not running |
 | `corral window [SET]` | go to corral's window (and its i3 workspace); opens it if there is none |
-| `corral term [DIR [CMD…]]` | new terminal window that looks plain but can be docked; CMD is typed into its shell |
+| `corral term [DIR [CMD…]]` | new terminal window that looks plain but can be docked; CMD is typed into its shell (`corral term .` opens one here) |
 | `corral run [--set SET] DIR [CMD…]` | start CMD as a new task of a set (default: the last one) and show it |
 | `corral sets` | list sets (`*` = running) |
 | `corral save [SET]` | snapshot what a set runs now into its set file |
@@ -94,11 +94,11 @@ The prefix is Ctrl+Space.
 | anywhere in a set | Alt+j / Alt+k (Alt+↓/↑) | show next / previous task, focused |
 | | Alt+← / Alt+→ | focus sidebar / task |
 | | prefix n / p | show next / previous task |
-| | prefix c | new shell in this directory |
 | | prefix b | hide / show the sidebar |
 | | prefix s | focus the sidebar |
 | | prefix S | switch set (menu) |
-| any corral pane | prefix D | dock this pane into a set (menu) |
+| any corral pane | prefix c | new shell in this directory: a task in a set, a new window in a `corral term` |
+| | prefix D | dock this pane into a set (menu) |
 | | prefix U | undock this task into its own window |
 | sidebar | j/k, ↑/↓, wheel | show next / previous (focus stays in the sidebar) |
 | | Enter, l, click | show and focus the task |

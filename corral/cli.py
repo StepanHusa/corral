@@ -66,7 +66,8 @@ def cmd_open(args: argparse.Namespace) -> int:
 
 
 def cmd_term(args: argparse.Namespace) -> int:
-    directory = os.path.expanduser(args.dir) if args.dir else str(Path.home())
+    # absolute: tmux would resolve `corral term .` from its own directory
+    directory = os.path.abspath(os.path.expanduser(args.dir)) if args.dir else str(Path.home())
     core.open_terminal(core.loose_session_args(directory, shlex.join(args.command)))
     return 0
 
@@ -182,8 +183,9 @@ def cmd_step(args: argparse.Namespace) -> int:
 
 
 def cmd_new(args: argparse.Namespace) -> int:
+    """prefix c: a new shell in this directory: a task in a set, a window elsewhere."""
     if args.session not in core.set_sessions():
-        tmux.run("display-message", "-d", "2000", "corral: new tasks go into a set (prefix S)", check=False)
+        core.open_terminal(core.loose_session_args(args.dir))
         return 0
     pane = core.add_task(args.session, core.unique_name(args.session, "shell"), args.dir)
     core.show(args.session, pane, focus=True)
@@ -215,7 +217,7 @@ def cmd_undock(args: argparse.Namespace) -> int:
 
 
 def cmd_set_menu(args: argparse.Namespace) -> int:
-    current = tmux.run("display-message", "-p", "-c", args.client, "#{session_name}", check=False).strip()
+    current = core.client_session(args.client)
     core.show_set_menu(args.client, "switch set", "switch", current)
     return 0
 

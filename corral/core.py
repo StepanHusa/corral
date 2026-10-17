@@ -127,6 +127,13 @@ def _loose_name() -> str:
     return LOOSE_PREFIX + secrets.token_hex(3)
 
 
+def client_session(client: str) -> str | None:
+    """The session a client shows. (`display-message -c` would not do: its
+    formats are expanded for tmux's current session, not the client's.)"""
+    rows = tmux.lines("list-clients", "-F", "#{client_name}\t#{session_name}")
+    return next((r[1] for r in rows if len(r) > 1 and r[0] == client), None)
+
+
 def first_client(session: str) -> str | None:
     rows = tmux.lines("list-clients", "-t", f"={session}", "-F", "#{client_name}")
     return rows[0][0] if rows else None
@@ -349,7 +356,7 @@ def switch_client(client: str | None, target: str) -> None:
     there, so what ran in it lives on as a task (only closing a window ends it).
     """
     which = ["-c", client] if client else []
-    old = tmux.run("display-message", "-p", *which, "#{session_name}", check=False).strip()
+    old = client_session(client) if client else None
     tmux.run("switch-client", *which, "-t", f"={target}")
     if old and old != target and old in loose_sessions():
         for row in tmux.lines("list-panes", "-s", "-t", f"={old}", "-F", "#{pane_id}"):
